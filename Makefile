@@ -3,8 +3,8 @@
 
 prefix = /usr/local
 bindir = $(prefix)/bin
-
-PROG = microsocks
+CC = arm-xilinx-linux-gnueabi-gcc
+PROG = microsocks-arm
 SRCS =  sockssrv.c server.c sblist.c sblist_delete.c
 OBJS = $(SRCS:.c=.o)
 
@@ -28,7 +28,7 @@ clean:
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) $(PIC) -c -o $@ $<
 
 $(PROG): $(OBJS)
-	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) -o $@
+	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) -o $@ --static
 
 .PHONY: all clean install
 

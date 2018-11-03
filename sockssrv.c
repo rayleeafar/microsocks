@@ -110,7 +110,7 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 	size_t minlen = 4 + 4 + 2, l;
 	char namebuf[256];
 	struct addrinfo* remote;
-
+    dolog("1\n");
 	switch(buf[3]) {
 		case 4: /* ipv6 */
 			af = AF_INET6;
@@ -131,10 +131,13 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 		default:
 			return -EC_ADDRESSTYPE_NOT_SUPPORTED;
 	}
+	dolog("2\n");
 	unsigned short port;
 	port = (buf[minlen-2] << 8) | buf[minlen-1];
 	if(resolve(namebuf, port, &remote)) return -9;
+	dolog("3\n");
 	int fd = socket(remote->ai_addr->sa_family, SOCK_STREAM, 0);
+	dolog("4\n");
 	if(fd == -1) {
 		eval_errno:
 		freeaddrinfo(remote);
@@ -160,8 +163,9 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 		goto eval_errno;
 	if(connect(fd, remote->ai_addr, remote->ai_addrlen) == -1)
 		goto eval_errno;
-
+    dolog("5\n");
 	freeaddrinfo(remote);
+	dolog("6\n");
 	if(CONFIG_LOG) {
 		char clientname[256];
 		af = client->addr.v4.sin_family;
@@ -255,10 +259,19 @@ static void copyloop(int fd1, int fd2) {
 				else perror("select");
 				return;
 		}
-		int infd = FD_ISSET(fd1, &fds) ? fd1 : fd2;
+		int infd;
+		if(FD_ISSET(fd1, &fds) ){ 
+			infd = fd1;
+			dolog("local --> remo: ");
+		} else{
+			infd = fd2;
+			dolog("remo --> local: ");
+			}
 		int outfd = infd == fd2 ? fd1 : fd2;
 		char buf[1024];
 		ssize_t sent = 0, n = read(infd, buf, sizeof buf);
+		buf[n]='\0';
+		dolog("send data:\n%s\n", buf);
 		if(n <= 0) return;
 		while(sent < n) {
 			ssize_t m = write(outfd, buf+sent, n-sent);
@@ -293,6 +306,7 @@ static void* clientthread(void *data) {
 	int ret;
 	int remotefd = -1;
 	enum authmethod am;
+	dolog("in client thread...\n");
 	while((n = recv(t->client.fd, buf, sizeof buf, 0)) > 0) {
 		switch(t->state) {
 			case SS_1_CONNECTED:
@@ -311,6 +325,7 @@ static void* clientthread(void *data) {
 				if(auth_ips) add_auth_ip(&t->client);
 				break;
 			case SS_3_AUTHED:
+			    dolog("connect_socks_target...\n");
 				ret = connect_socks_target(buf, n, &t->client);
 				if(ret < 0) {
 					send_error(t->client.fd, ret*-1);
@@ -318,6 +333,7 @@ static void* clientthread(void *data) {
 				}
 				remotefd = ret;
 				send_error(t->client.fd, EC_SUCCESS);
+				dolog("copyloop...\n");
 				copyloop(t->client.fd, remotefd);
 				goto breakloop;
 
@@ -420,7 +436,7 @@ int main(int argc, char** argv) {
 	}
 	server = &s;
 	size_t stacksz = MAX(8192, PTHREAD_STACK_MIN);  /* 4KB for us, 4KB for libc */
-
+    dolog("socks server started!\n");
 	while(1) {
 		collect(threads);
 		struct client c;
