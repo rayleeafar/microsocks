@@ -364,7 +364,7 @@ static void collect(sblist *threads) {
 }
 
 static int usage(void) {
-	dprintf(2,
+	dolog(
 		"MicroSocks SOCKS5 Server\n"
 		"------------------------\n"
 		"usage: microsocks -1 -b -i listenip -p port -u user -P password\n"
@@ -414,17 +414,17 @@ int main(int argc, char** argv) {
 				port = atoi(optarg);
 				break;
 			case ':':
-				dprintf(2, "error: option -%c requires an operand\n", optopt);
+				dolog("error: option -%c requires an operand\n", optopt);
 			case '?':
 				return usage();
 		}
 	}
 	if((auth_user && !auth_pass) || (!auth_user && auth_pass)) {
-		dprintf(2, "error: user and pass must be used together\n");
+		dolog("error: user and pass must be used together\n");
 		return 1;
 	}
 	if(auth_ips && !auth_pass) {
-		dprintf(2, "error: auth-once option must be used together with user/pass\n");
+		dolog("error: auth-once option must be used together with user/pass\n");
 		return 1;
 	}
 	signal(SIGPIPE, SIG_IGN);
