@@ -539,7 +539,7 @@ int copyloop_venus(int fd1, int fd2)
 			return;
 		if ((check_stratum_msg_type(buf) == STM_SUBSCRIBE) && (infd == fd1))
 		{
-			if (IS_VENUS_LOOP)
+			if (IS_VENUS_LOOP == 1)
 			{
 				if (strlen(g_venus_init_sub_ret) > 0)
 				{
@@ -547,7 +547,7 @@ int copyloop_venus(int fd1, int fd2)
 					continue;
 				}
 			}
-			else
+			else if (IS_VENUS_LOOP == 0)
 			{
 				if (strlen(g_real_init_sub_ret) > 0)
 				{
@@ -570,7 +570,7 @@ int copyloop_venus(int fd1, int fd2)
 				repalce_name_send(outfd, buf);
 				continue;
 			}
-			else
+			else if (IS_VENUS_LOOP == 0)
 			{
 				if (strlen(g_real_diff_value) > 0)
 				{
@@ -593,7 +593,7 @@ int copyloop_venus(int fd1, int fd2)
 		{
 			if (IS_VENUS_LOOP)
 				backup_msg(buf, g_venus_init_sub_ret);
-			else
+			else if (IS_VENUS_LOOP == 0)
 				backup_msg(buf, g_real_init_sub_ret);
 		}
 		else if ((check_stratum_msg_type(buf) == STM_SET_DIFFICULT) && (infd == fd2))
@@ -605,7 +605,7 @@ int copyloop_venus(int fd1, int fd2)
 				strcpy(g_venus_diff_value, diff);
 				g_venus_diff_value[n] = '\0';
 			}
-			else
+			else if (IS_VENUS_LOOP == 0)
 			{
 				char *diff = find_target_str(buf, "\"params\":[", "]");
 				size_t n = strlen(diff);
@@ -626,7 +626,7 @@ int copyloop_venus(int fd1, int fd2)
 					return 1;
 				}
 			}
-			else
+			else if (IS_VENUS_LOOP == 0)
 			{
 				backup_msg(buf, g_real_notify_job_ret);
 				g_real_job_count++;
