@@ -1,0 +1,126 @@
+//local --> remo: send data:
+{
+    "id": 3,
+    "method": "mining.subscribe",
+    "params": [
+        "cgminer/4.9.2"
+    ]
+}
+//remo --> local: send data:
+{
+    "id": 3,
+    "result": [
+        [
+            [
+                "mining.set_difficulty",
+                "1"
+            ],
+            [
+                "mining.notify",
+                "1"
+            ]
+        ],
+        "64650100e6bdbb",
+        4
+    ],
+    "error": null
+}
+//local --> remo: send data:
+{
+    "id": 4,
+    "method": "mining.authorize",
+    "params": [
+        "rayraycoin.worker1",
+        "x"
+    ]
+}
+//remo --> local: send data:
+{
+    "id": null,
+    "method": "mining.set_difficulty",
+    "params": [
+        8192
+    ]
+}
+{
+    "id": null,
+    "method": "mining.notify",
+    "params": [
+        "844a7",
+        "f4455066498cf59b04bd2fd15e93270546db38c6000c1ef30000000000000000",
+        "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4503f95e08fabe6d6ddf2e5d24f90eb819e7cccc40ddbd8d15bfcc536342ef9bc6bac3aa263139d8b70100000000000000",
+        "a744082f736c7573682f000000000313141a4b000000001976a9147c154ed1dc59609e3d26abb2df2ea3d587cd8c4188ac00000000000000002c6a4c2952534b424c4f434b3a2248fac5c8dec01e94f371db5109065c783bb4ffd7e618be47cd8c6ea0f07b2e0000000000000000266a24aa21a9edf23529ae41b9260ffeb620b684f47a1150bbc9f6b3cffc7cc8528313b71a47aa00000000",
+        [
+            "9d7bb0c2abc783cb12b8b1d0d89b7c2949249240b1789288fd62e9c46a6b55e1",
+            "4f64f9e9772c0add674ced51bc0cf9952a8aa415f37e98ae299d36b3f04853b1",
+            "08158638c8d013c7c3e13b95c0e53d73d8bbdaf6f9fefa5c0fad3383e6d061f3",
+            "7b221cc6672a719520a409b65940b434ce36c87995e2e818cf70e53e9cb9e7d1",
+            "4a50f7e54ea7fc89cc7c3c5d4aef680f09ec841162dc36f6fb849dc95fb92ad1",
+            "e9ffb033951de59a14efb90715e5216c2cbe4d6c656e8f5b46e6eff05e0899fa",
+            "ac796e02f276a24d6e4ab43c79ba084fb450af4f3d94f8ad811a85b95253add3",
+            "e986a4d0b7e3e2457c735d47c8f1ab0f27c86b33e19dc772e71fc301ed204ced",
+            "dcdf3a27da1d73f3142415161616970abbc0eaa69f1f70f2cb917f4f34bd4ef2",
+            "21d428e34e91ce05540042c86b1d8ab5e719c598673f830fd8c58c1c98308f1f",
+            "c87f10987a71e4c346b6d0ba4bb205a236ec22854ca6faba028bb57246dc21f9",
+            "9b9459274ec566622b8de7ca9da79069c8cefd7680feb76ba1469ae47e4f94af"
+        ],
+        "20000000",
+        "17272d92",
+        "5bdda51d",
+        true
+    ]
+}
+//remo --> local: send data:
+{
+    "id": 4,
+    "result": true,
+    "error": null
+}
+//remo --> local: send data:
+{
+    "params": [
+        "84520",
+        "71d51da17f6acbed3546f450a8deaba7eed0945b0025091a0000000000000000",
+        "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4503fc5e08fabe6d6de16f0e6fbc27512898a8c2b1b988a1c79606dce7ff5c53f8ba261c5ffe1b07430100000000000000",
+        "2045082f736c7573682f000000000308f1184b000000001976a9147c154ed1dc59609e3d26abb2df2ea3d587cd8c4188ac00000000000000002c6a4c2952534b424c4f434b3ad27d50e5006d1b2728eb2f48e48e7d19898e2f4287f44a87cd88208005dd4f020000000000000000266a24aa21a9ed8410487672383ee41930f4807505687c15dc6e3fded3e0be0a4e347e90582e7500000000",
+        [
+            "991e81014978a16880dd3808ea57450bead2f77cda6b6000a37af26a846958fc",
+            "82cb4d0e60e346d50abf829408a494c1cbf1f70f542e07229385c4f4bd44aa8b",
+            "79188832653b19063713d17749feb309f27eae6b5351bfdb068551aaed8e4b78",
+            "6fe669763452f12d6791361464489477ca617696b11a9424f93daa0a8493a18e",
+            "7eee5f94c49a6074aff0c4157d8dc482905c118ebb0f8c5812fa8b90e86b2fe6",
+            "6dc97b6bd1de6ebd267998a176212c15a9a31a141a76ba6644d40e50313d7f36",
+            "9c7ec05610e3763f3016b5593dd52128cf10806f72205090dafc1bb6150969af",
+            "0c67f3eb9c4f2891351893d8f92cf46d57ffb705593ae1ce242a99ab00ab9aef",
+            "1a180a02184daa9812be0ac39248bb1b51105e2ae0406a5910391b3447f5c0c5",
+            "6d606285671d44eb49ffa580966ada690d8f7b66e33daf41bfd6eff121b343bc",
+            "051858e1334af5d03cd83b5bde06a7fad2db06847080e0b7adac3ee3ccbb52b8",
+            "48fbd5bcbcfa5fd7a213194558a268204ab143e48f89e4ba4eab761983cc5a43"
+        ],
+        "20000000",
+        "17272d92",
+        "5bddab81",
+        false
+    ],
+    "id": null,
+    "method": "mining.notify"
+}
+//local --> remo: send data:
+{
+    "params": [
+        "slushpoo2.dev",
+        "84520",
+        "8e230000",
+        "5bddab81",
+        "b44bfb88",
+        "00400000"
+    ],
+    "id": 3685,
+    "method": "mining.submit"
+}
+//remo --> local: send data:
+{
+    "id": 3685,
+    "result": true,
+    "error": null
+}
