@@ -1,8 +1,7 @@
+#include "utils.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
-#include "utils.h"
 
 char *strreplace(char const *const original, char const *const pattern, char const *const replacement)
 {

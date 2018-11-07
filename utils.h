@@ -1,11 +1,13 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-char const *const STM_SUBSCRIBE_KEY = "mining.subscribe";
-char const *const STM_AUTH_KEY = "mining.authorize";
-char const *const STM_SET_DIFFICULT_KEY = "mining.set_difficulty";
-char const *const STM_NOTIFY_KEY = "mining.notify";
-char const *const STM_SUBMIT_KEY = "mining.submit";
+#include <stddef.h>
+
+#define STM_SUBSCRIBE_KEY "mining.subscribe"
+#define STM_AUTH_KEY "mining.authorize"
+#define STM_SET_DIFFICULT_KEY "mining.set_difficulty"
+#define STM_NOTIFY_KEY "mining.notify"
+#define STM_SUBMIT_KEY "mining.submit"
 
 enum STRATUM_MSG_TYPE
 {
