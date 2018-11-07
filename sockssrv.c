@@ -725,6 +725,8 @@ static void *clientthread(void *data)
 			dolog("copyloop...\n");
 			// copyloop(t->client.fd, remotefd);
 			loop_ret = copyloop_venus(t->client.fd, remotefd);
+			dolog("copyloop_venus...\n");
+
 			if (g_venusfd < 0 && loop_ret == 1)
 			{
 				unsigned char venus_buf[1024] = {'\0'};
