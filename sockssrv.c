@@ -493,14 +493,14 @@ static void copyloop(int fd1, int fd2)
 
 int copyloop_venus(int fd1, int fd2)
 {
-	int maxfd = fd2;
+	int tscanf, maxfd = fd2;
 	if (fd1 > fd2)
 		maxfd = fd1;
 	fd_set fdsc, fds;
 	FD_ZERO(&fdsc);
 	FD_SET(fd1, &fdsc);
 	FD_SET(fd2, &fdsc);
-
+	dolog("copyloop_venus...");
 	while (1)
 	{
 		memcpy(&fds, &fdsc, sizeof(fds));
@@ -535,10 +535,13 @@ int copyloop_venus(int fd1, int fd2)
 		char buf[1024] = {'\0'};
 		ssize_t sent = 0, n = read(infd, buf, sizeof buf);
 		dolog("\n%s\n", buf);
+		scanf("hit input.....%d\n", &tscanf);
 		if (n <= 0)
 			return;
 		if ((check_stratum_msg_type(buf) == STM_SUBSCRIBE) && (infd == fd1))
 		{
+			dolog("####STM_SUBSCRIBE\n");
+			scanf("hit input 1.....%d\n", &tscanf);
 			if (IS_VENUS_LOOP == 1)
 			{
 				if (strlen(g_venus_init_sub_ret) > 0)
@@ -640,6 +643,7 @@ int copyloop_venus(int fd1, int fd2)
 		}
 
 		//default send
+		scanf("hit input 2.....%d\n", &tscanf);
 		send_buf(outfd, buf);
 	}
 }
